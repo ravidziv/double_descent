@@ -1,0 +1,129 @@
+import numpy as np
+import pandas as pd
+from typing import Tuple
+
+
+ylim_by_dataset = {
+    "Student-Teacher": (1e-1, 1e8),
+    "California Housing": (1e-2, 1e8),
+    "Diabetes": (1e3, 3.16e7),
+    "WHO Life Expectancy": (1e0, 1e11),
+}
+
+
+def generate_synthetic_data(
+    return_X_y: bool,
+    N: int = 1000,
+    P: int = 30,
+    D: int = 20,
+) -> Tuple[np.ndarray, np.ndarray]:
+    X_bar = np.random.randn(N, P)
+    X = X_bar[:, :D]
+    beta_bar = np.random.randn(P, 1)
+    Y = X_bar @ beta_bar
+    return X, Y
+
+
+def load_who_life_expectancy(**kwargs):
+    # https://www.kaggle.com/kumarajarshi/life-expectancy-who
+
+    life_expectancy_df = pd.read_csv("data/Life Expectancy Data.csv")
+    life_expectancy_df.dropna(inplace=True)
+
+    X = life_expectancy_df[
+        [
+            "Adult Mortality",
+            "infant deaths",
+            "Alcohol",
+            "percentage expenditure",
+            "Hepatitis B",
+            "Measles ",
+            " BMI ",
+            "under-five deaths ",
+            "Polio",
+            "Total expenditure",
+            "Diphtheria ",
+            " HIV/AIDS",
+            "GDP",
+            "Population",
+            " thinness  1-19 years",
+            " thinness 5-9 years",
+            "Schooling",
+        ]
+    ].values
+    y = life_expectancy_df["Life expectancy "].values
+
+    return X, y
+
+
+def compute_closed_form_solution(X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Compute the closed-form solution for linear regression."""
+    return np.linalg.solve(X.T @ X, X.T @ y)
+
+
+def compute_gradient_descent_solution(
+    X: np.ndarray, 
+    y: np.ndarray, 
+    learning_rate: float = 0.0001,
+    n_iterations: int = 100000,
+    tol: float = 1e-6
+) -> np.ndarray:
+    """Compute the gradient descent solution for linear regression."""
+    n_samples, n_features = X.shape
+    beta = np.zeros((n_features, 1))
+    
+    for _ in range(n_iterations):
+        # Compute predictions
+        y_pred = X @ beta
+        
+        # Compute gradient
+        gradient = (2/n_samples) * X.T @ (y_pred - y)
+        
+        # Update parameters
+        beta_new = beta - learning_rate * gradient
+        
+        # Check convergence
+        if np.all(np.abs(beta_new - beta) < tol):
+            break
+            
+        beta = beta_new
+    
+    return beta
+
+
+def generate_comparison_data(
+    n_samples_range: list,
+    n_features_range: list,
+    noise_std: float = 0.1
+) -> dict:
+    """Generate comparison data for different sample sizes and feature counts."""
+    results = {
+        'n_samples': [],
+        'n_features': [],
+        'closed_form_error': [],
+        'gradient_descent_error': []
+    }
+    
+    for n_samples in n_samples_range:
+        for n_features in n_features_range:
+            # Generate synthetic data
+            X, y = generate_synthetic_data(True, N=n_samples, P=n_features, D=n_features)
+            
+            # Add noise to target
+            y = y + np.random.normal(0, noise_std, size=y.shape)
+            
+            # Compute both solutions
+            beta_closed = compute_closed_form_solution(X, y)
+            beta_gd = compute_gradient_descent_solution(X, y)
+            
+            # Compute errors
+            closed_form_error = np.mean((X @ beta_closed - y) ** 2)
+            gd_error = np.mean((X @ beta_gd - y) ** 2)
+            
+            # Store results
+            results['n_samples'].append(n_samples)
+            results['n_features'].append(n_features)
+            results['closed_form_error'].append(closed_form_error)
+            results['gradient_descent_error'].append(gd_error)
+    
+    return results
